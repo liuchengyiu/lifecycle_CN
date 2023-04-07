@@ -37,4 +37,9 @@ class DataSet:
             'gmm_std_1': param[5],
             'gmm_std_2': param[6],
         }
+    
+    def get_pension_benefit_param(self):
+        average_income = 69228 * 0.8 + 122309 * 0.2
+        fixed_rate = 0.8
         
+

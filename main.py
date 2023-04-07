@@ -1,5 +1,6 @@
 from datasets import DataSet
 from environment import env
+from functools import wraps
 
 
 
@@ -14,3 +15,6 @@ enviorment.age += 1
 print(enviorment.evlove_income())
 enviorment.age += 1
 print(enviorment.evlove_income())
+enviorment.pension_benefit()
+# print(enviorment.income_state)
+# print(enviorment.employ_state)
