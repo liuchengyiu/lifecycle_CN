@@ -1,2 +1,2 @@
-from environment.env import env
+from environment.env import env as lifecycle_env
 

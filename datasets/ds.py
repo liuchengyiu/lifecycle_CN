@@ -1,9 +1,20 @@
 import pandas as pd
 import numpy as np
 import time
+from statsmodels.tsa.api import VAR
+import statsmodels.api as sm
+import copy
 class DataSet:
-    def __init__(self) -> None:
+    def __init__(self, s_age=25) -> None:
         self.create_time = time.time()
+        self.risk_free_rate = 0.02
+        self.exp_life = 75
+        self.retire_age = 60
+        self.s_age = s_age
+        self.lowest_comsumption = 36000
+        self.tex_exempt = 60000
+        self.special_tex_deduction = 12000
+        self.rate_models = self.rate_model()
     
     def get_unemployment_rate(self, sex, age):
         # sex: {0, 1} 0 male, 1 female
@@ -39,7 +50,246 @@ class DataSet:
         }
     
     def get_pension_benefit_param(self):
-        average_income = 69228 * 0.8 + 122309 * 0.2
-        fixed_rate = 0.8
-        
+        return {
+            'fixed_rate': 0.8,
+            'ave_income': [95397],
+            'basic_pension_rate': 0.15,
+            'employer_rate': 0.15,
+            'exp_life': self.exp_life,
+            'pension_fund_rate': 0.0275,
+            'A_ret': -1,
+            'retire_age': self.retire_age,
+            'ave_p': 1,
+            'ave_stochastic_param': [0.0592753156445290, 0.018054842355693046],
+            'ave_t0': 95397,
+            'private_pension_saving_limit': 12000,
+            'con_base': [],
+            'B1_factor': -1,
+        }
+    
+    def get_medical_param(self, health_features, sim_time=1000):
+        import json
+        import joblib
+        import copy
+        from sklearn.preprocessing import PolynomialFeatures
 
+        sigma1 = .079312
+        simga2 = .943718
+        persistent_p = .904839
+        trans_pro = json.load(open('./datasets/data/health_status_trans_p.json', 'r'))
+        model = joblib.load('./datasets/model/health_cost.pkl')
+        dur = self.exp_life - self.retire_age + 1
+        z_q = np.random.normal(0, sigma1, (dur, sim_time))
+        z_p = np.random.normal(0, simga2, (dur, sim_time))
+        g_param = self.risk_free_rate / (np.power(1+self.risk_free_rate, self.retire_age - self.s_age) - 1)
+        h_status = np.zeros((dur, sim_time))
+        poly_features = PolynomialFeatures(degree=3)
+
+        for i in range(dur):
+            if i == 0:
+                continue
+            z_p[i, :] = z_p[i-1, :]*persistent_p + z_p[i, :]
+
+        for i in range(sim_time):
+            for t in range(dur):
+                if t == 0:
+                    h_status[t, i] = np.random.choice([1, 0.74, 0], p = trans_pro[str(self.retire_age+t)][str(1)])
+                    continue
+                if h_status[t-1, i] == 0:
+                    continue
+                status = '0.74' if h_status[t-1][i] < 1 else '1' 
+                h_status[t, i] = np.random.choice([1, 0.74, 0], p = trans_pro[str(self.retire_age+t)][status])
+        
+        # profile : sex,age,health_status,disease_1,disease_2,disease_3,disease_4,disease_5,disease_6,disease_7,disease_8,disease_9,disease_10,disease_11,disease_12,disease_13,disease_14
+        delta_m_t = []
+        prob = []
+        for t in range(dur):
+            if t == 0:
+                bef_pro = [1, 0, 0]
+            trans = trans_pro[str(self.retire_age + t)]
+            prob.append(
+                bef_pro[0] * trans['1'][1] + bef_pro[1] * trans['0.74'][1]
+            )
+            bef_pro = [
+                bef_pro[0] * trans['1'][0] + bef_pro[1] * trans['1'][0], bef_pro[0] * trans['1'][1] + bef_pro[1] * trans['0.74'][1], 
+            ]
+
+            bad_h_profile = copy.deepcopy(health_features)
+            simulate_p = copy.deepcopy(health_features)
+            bad_h_profile[1] = self.retire_age + t
+            bad_h_profile[2] = 0.74
+            simulate_p[1] = self.retire_age + t
+            bad_cost = abs(model.predict(poly_features.fit_transform([bad_h_profile])))
+            simulate = np.repeat(simulate_p, sim_time).reshape(sim_time, -1)
+            simulate[:, 1] = self.retire_age + t
+            simulate[:, 2] = h_status[t, :]
+            sim_cost = abs(model.predict(poly_features.fit_transform(simulate)))
+            sim_cost = bad_cost - sim_cost
+            sim_cost[sim_cost < 0] = 0
+            sim_cost[simulate[:, 2] == 0] = 0
+            sim_cost = sim_cost * np.exp(z_q[t, :] + z_p[t, :])
+            mt = sim_cost.mean()
+            delta_m_t.append(mt)
+        
+        sum_ = 0
+        for t in range(dur):
+            sum_ += (prob[t] * delta_m_t[t]) / np.power(1+self.risk_free_rate, t+1)
+        
+        hs = '1' if health_features[2] > 0.8 else '0.74'
+        param = { 
+            'transitory_shock': [0, sigma1],
+            'persistent_param': 0.904839,
+            'persistent_shock': [0, simga2],
+            'trans_pro': trans_pro,
+            'health_cost': model,
+            'hs_fractor': 1.0,
+            'g': sum_ * g_param,
+            'accumulate_shock': 0,
+            'health_feature': health_features,
+            'health_status': '1' if health_features[1] < 60 else hs,
+            'accumulated_shock': 0,
+        }
+
+        return param
+    
+    def get_rate_model(self):
+        import copy
+        return copy.deepcopy(self.rate_models)
+
+    def rate_model(self):
+        import json
+        end_date = '2023-04-14'
+        start_date = '2018-01-02'
+        date = pd.read_csv('./datasets/data/CSI_300.csv')
+        date  = date[['Date']]
+        date['Date'] = pd.DatetimeIndex(date['Date'])
+        date = date[(date['Date'] >= start_date) & (date['Date'] <= end_date)]
+        def deal_lpr(date):
+            df = date
+            df['lpr'] = 0
+            df['Date'] = pd.DatetimeIndex(df['Date']).strftime('%Y-%m-%d')
+            lpr = pd.read_csv('./datasets/data/lpr.csv')
+            lpr['Date'] = pd.DatetimeIndex(lpr['Date']).strftime('%Y-%m-%d')
+            ed = end_date
+
+            for index, row in lpr.iterrows():
+                sd = row['Date']
+                df.loc[(df['Date'] >= sd) & (df['Date'] <= ed), 'lpr'] = row['5Y'] / 30
+                ed = sd
+            df.loc[(df['Date'] >= start_date) & (df['Date'] <= ed), 'lpr'] = 4.9 /30 
+            df.index =  pd.DatetimeIndex(df['Date'])
+            df = df[df.columns[1:]]
+            return df
+
+        def deal_10_bond():
+            df = pd.read_csv('./datasets/data/China_10_bond.csv')
+            df.index = pd.DatetimeIndex(df['Date'])
+            df['long_r'] = df.apply(lambda row: float(row['Change %'].replace('%', '')), axis=1)
+            df = df[['long_r']]
+            df = df[(df.index >= start_date) & (df.index <= end_date)]
+            return df
+
+        def csi_300():
+            df = pd.read_csv('./datasets/data/CSI_300.csv')
+            df.index = pd.DatetimeIndex(df['Date'])
+            df['equity_r'] = df.apply(lambda row: float(row['Change %'].replace('%', '')), axis=1)
+            df = df[['equity_r']]
+            df = df[(df.index >= start_date) & (df.index <= end_date)]
+            return df
+        
+        def real_state(date):
+            t1_m = json.load(open('./datasets/data/china_tier1.json', 'r'))['data']['c:274']['s']
+            t2_3_m = json.load(open('./datasets/data/china_tier2_3.json', 'r'))['data']['c:647']['s']
+            df = date
+            df['china_tier1'] = 0
+            df['china_tier2_3'] = 0
+            def generate_model(lists, name):
+                dfs = [ pd.DataFrame(lists[i], columns= ['Date', name]) for i in range(len(lists)) ] 
+                dfr = dfs[0]
+                dfr[name] = 1 / len(lists) * pd.to_numeric(dfr[name])
+                for i in range(1, len(dfs)):
+                    dfr[name] += 1 / len(lists) * pd.to_numeric(dfs[i][name])
+                df['Date'] = pd.DatetimeIndex(df['Date']).strftime('%Y-%m-%d')
+                dfr['Date'] = pd.DatetimeIndex(dfr['Date']).strftime('%Y-%m-%d')
+                sd = start_date
+
+                for index, row in dfr.iterrows():
+                    ed = row['Date']
+                    df.loc[(df['Date'] >= sd) & (df['Date'] <= ed), name] = row[name] / 30
+                    sd = ed
+                df.loc[(df['Date'] >= sd) & (df['Date'] <= end_date), name] = row[name] / 30
+            ds = [[t1_m, "china_tier1"], [t2_3_m, "china_tier2_3"]]
+            for i in ds:
+                generate_model(*i)
+            return df
+        res = deal_10_bond()
+        res['equity_r'] = csi_300()['equity_r']
+        res['lpr'] = deal_lpr(date)['lpr']
+        res[['china_tier1', 'china_tier2_3']] = real_state(date)[['china_tier1', 'china_tier2_3']]
+        res['equity_r'].replace( np.nan, 0, inplace=True)
+        res['lpr'].replace( np.nan, 4.9, inplace=True)
+        res['china_tier1'].replace( np.nan, 0, inplace=True)
+        res['china_tier2_3'].replace( np.nan, 0, inplace=True)
+        res['long_r'] = res['long_r'] / 100
+        res['equity_r'] = res['equity_r'] / 100
+        res['lpr'] = res['lpr'] / 100
+        res['china_tier1'] = res['china_tier1'] / 100
+        res['china_tier2_3'] = res['china_tier2_3'] / 100
+        model = VAR(res)
+        result = model.fit(1, ic='aic')
+        # # result.
+        # print(res)
+        # # print(res.values[-1, ::])
+        # exit(0)
+        return {
+            'rates': 0,
+            'rate_model': result,
+            'rates_latest': res.values[-1, ::],
+        }
+
+    def house_param(self):
+        """
+        beijing: 38,240.257
+        shanghai:  36,584.915
+        """
+        return {
+            'house_price': 38240.257,
+            'rent_to_price': 1 / 600,
+            'interest_diff': 0.02,
+            'transaction_cost': 0.05,
+            'loan_to_value': 0.7,
+            'commerical_loan_term': 0,
+            'max_commerical_loan_term': 20,
+            'max_house_fund_loan_term': 20,
+            'max_house_fund_contribution_rate': 0.05,
+            'house_fund_loan_term': 0,
+            'house_fund_contribution_rate': 0, 
+            'owning_house': 0,
+            'debt': 0,
+            'house_fund_loan': 0,
+            'house_fund': 0,
+            'house_loan_to_fund': 15,
+            'house_fund_loan_ceiling': 600000,
+            'house_size': 0,
+            'lpr': 0.043
+        }
+
+    def get_investment_asset(self):
+        # investment assets
+
+        return {
+            'long_term_bond': 0,
+            'equity_return': 0,
+            'p_long_term_bond': 0,
+            'p_equity_return': 0,
+        }
+
+    def get_reward_param(self):
+        return {
+            'risk_aversion': 5.24,
+            'opt_non_house_cost_proportion': 0.35,
+            'child_num_impact': 0.76,
+            'k2': 0.3,
+            'k3': 0.4,
+            'a': 0.3
+        }
