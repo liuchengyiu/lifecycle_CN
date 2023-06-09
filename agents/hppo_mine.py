@@ -174,10 +174,10 @@ class ActorCon(nn.Module):
         self.log_std = nn.Parameter(torch.zeros(1, action_dim), requires_grad=True) 
         for i in range(len(hidden_layer)):
             self.layers.append(nn.Linear(last_layer_dim, hidden_layer[i]))
-            xavier_init(self.layers[i])
+            orthogonal_init(self.layers[i], gain=0.01)
             last_layer_dim = hidden_layer[i]
         self.layers.append(nn.Linear(last_layer_dim, action_dim))
-        xavier_init(self.layers[-1])
+        orthogonal_init(self.layers[-1], gain=0.01)
     
     def forward(self, x):
         for i in range(len(self.layers)):

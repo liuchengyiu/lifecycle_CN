@@ -71,9 +71,9 @@ def evaluate_policy(args, env, agent, state_norm):
         while not done:
             a,p = agent.evalate(_s)  # We use the deterministic policy during the evaluating
             if agent.ac_type == 'normal' or agent.ac_type == 'stuT':
-                param = (p[a:(a+1)]+1)/2
+                param = (p[a*10:a*10+10]+1)/2
             elif agent.ac_type == 'beta' or agent.ac_type=='gamma':
-                param = p[a:(a+1)]
+                param = p[a:(a+1)*2]
             elif agent.ac_type == 'F':
                 param = p[a:(a+1)] / 2
             s_, r, done = env.step(s, (a, (param)))
@@ -142,6 +142,7 @@ def main(args, number, seed):
             elif agent.ac_type == 'F':
                 param = p[a:(a+1)] / 2
             s_, r, done = env.step(s, (a, param))
+            # print(param)
             _s_ = state_norm(s_)
             r_ = reward_scaling(r)
             # When dead or win or reaching the max_episode_steps, done will be Ture, we need to distinguish them;
