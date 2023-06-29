@@ -5,6 +5,7 @@ import numpy as np
 from torch.distributions import Normal, Beta, Gamma, StudentT, FisherSnedecor
 from torch.distributions import Categorical
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
+import os
 
 def kaiming_normal(layer):
     nn.init.kaiming_normal_(layer.weight, nonlinearity='relu')
@@ -270,7 +271,7 @@ class HPPO:
             if self.ac_type == 'normal' or self.ac_type == 'stuT':
                 p = torch.clamp(p, -1, 1)
             elif self.ac_type == 'gamma':
-                p = torch.clamp(p, -1, 1)
+                p = (torch.clamp(p, -1, 1) + 1) / 2
             p_logprob = p_dist.log_prob(p)
         return a.cpu().numpy()[0], a_logprob.cpu().numpy()[0], p.cpu().numpy().flatten(), p_logprob.cpu().numpy().flatten()
     
@@ -342,11 +343,22 @@ class HPPO:
         # if self.use_lr_decay:  # Trick 6:learning rate Decay
         self.lr_decay(total_steps)
 
+    def save(self, path):
+        torch.save(self.actor_con.state_dict(), os.path.join(path, "actor_con_{}.pt".format(self.ac_type)))
+        torch.save(self.actor_dis.state_dict(), os.path.join(path, "actor_dis_{}.pt".format(self.ac_type)))
+        torch.save(self.critic.state_dict(), os.path.join(path, "critic_{}.pt".format(self.ac_type)))
+    
+    def load(self, path):
+        self.actor_con.load_state_dict(torch.load(os.path.join(path, "actor_con_{}.pt").format(self.ac_type)))
+        self.actor_dis.load_state_dict(torch.load(os.path.join(path, "actor_dis_{}.pt").format(self.ac_type)))
+        self.critic.load_state_dict(torch.load(os.path.join(path, "critic_{}.pt").format(self.ac_type)))
+
+
     def lr_decay(self, total_steps):
         lr_ac_now = self.lr_ac * (1 - total_steps / self.max_train_steps)
         lr_ad_now = self.lr_ad * (1 - total_steps / self.max_train_steps)
         lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
-        print(lr_ac_now, lr_ad_now, lr_c_now)
+        # print(lr_ac_now, lr_ad_now, lr_c_now)
         for p in self.opt_actor_con.param_groups:
             p['lr'] = lr_ac_now
         for p in self.opt_actor_dis.param_groups:

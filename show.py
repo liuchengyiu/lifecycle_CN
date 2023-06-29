@@ -9,7 +9,8 @@ import torch
 from datasets import DataSet
 
 now_reward = -1000000
-
+ind_1 = [31.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,]
+ind_2 = [20.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,]
 class RewardScaling:
     def __init__(self, shape, gamma):
         self.shape = shape  # reward shape=1
@@ -37,19 +38,6 @@ class Normalization:
         x = (x - self.running_ms.mean) / (self.running_ms.std + 1e-8)
 
         return x
-    
-    def save(self, path):
-        import json
-        import os
-
-        dict_ = {
-            'n': self.running_ms.n,
-            'mean': self.running_ms.mean.tolist(),
-            'S': self.running_ms.S.tolist(),
-            'std': self.running_ms.std.tolist()
-        }
-        json.dump(dict_, open(os.path.join(path, "state_norm.txt"), 'w'))
-        
 
 class RunningMeanStd:
     # Dynamically calculate mean and std
@@ -72,7 +60,7 @@ class RunningMeanStd:
             self.std = np.sqrt(self.S / self.n)
 
 def evaluate_policy(args, env, agent, state_norm):
-    global now_reward
+    # global now_reward
     times = 500
     evaluate_reward = 0
     mu = 0
@@ -99,18 +87,15 @@ def evaluate_policy(args, env, agent, state_norm):
             # infu += param[1]
             s = s_
             # print(a, r)
-        single_re.append(episode_reward)
+        # single_re.append(episode_reward)
         evaluate_reward += episode_reward
-    if evaluate_reward / times > now_reward:
-        agent.save('./models')
-        state_norm.save('./models')
-        now_reward = evaluate_reward / times
+    env.record_df.to_csv('./state.csv')
     return evaluate_reward / times
 
 
 def main(args, number, seed):
-    env = lifecycle_env(DataSet(), 20, 1, [20.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
-    env_evaluate = lifecycle_env(DataSet(), 20, 1, [20.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    env = lifecycle_env(DataSet(), 25, 1, [25.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    env_evaluate = lifecycle_env(DataSet(), 25, 1, [25.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -125,9 +110,7 @@ def main(args, number, seed):
 
     evaluate_num = 0  # Record the number of evaluations
     evaluate_rewards = []  # Record the rewards during the evaluating
-    total_steps = 0  # Record the total steps during the training
     device = 2
-    replay_buffer = ReplayBufferV2_(args, device)
     agent = HPPO(
         action_dim=env.action_dim,
         state_dim=env.state_dim,
@@ -139,63 +122,15 @@ def main(args, number, seed):
         ac_type=args.distribution_type,
         torch_device=device,
     )
-    # reward_scaling = RewardScaling(shape=1, gamma=args.gamma)
-    # Build a tensorboard
-    # writer = SummaryWriter(log_dir='runs/PPO_discrete/env_{}_number_{}_seed_{}'.format(env_name, number, seed))
-
+    agent.load('./model_behavior/models')
     state_norm = Normalization(shape=args.state_dim)  # Trick 2:state normalization
-
-    while total_steps < args.max_train_steps:
-        s = env.reset()
-        _s = state_norm(s)
-        
-        episode_steps = 0
-        done = False
-        # reward_scaling.reset()
-        while not done:
-            episode_steps += 1
-            a, a_logprob, p, p_logprob = agent.choose_action(_s)  # Action and the corresponding log probability
-            # print(a, p)
-            # exit(0)
-            # print(p)
-            # print(a)
-            if agent.ac_type == 'normal' or agent.ac_type == 'stuT':
-                param = (p[a*10:a*10+10]+1)/2
-            elif agent.ac_type == 'beta' or agent.ac_type=='gamma':
-                param = p[a*10:a*10+10]
-            elif agent.ac_type == 'F':
-                param = (p[a*10:a*10+10]+1)/2
-            s_, r, done = env.step(s, (a, param))
-            # print(param)
-            _s_ = state_norm(s_)
-            r_ = r
-            # r_ = reward_scaling(r)
-            # When dead or win or reaching the max_episode_steps, done will be Ture, we need to distinguish them;
-            # dw means dead or win,there is no next state s';
-            # but when reaching the max_episode_steps,there is a next state s' actually.
-            if done:
-                dw = True
-            else:
-                dw = False
-
-            replay_buffer.store(_s, a, a_logprob, p, p_logprob, r_, _s_, dw, done)
-            s = s_
-            _s = _s_
-            total_steps += 1
-            # When the number of transitions in buffer reaches batch_size,then update
-            if replay_buffer.count == args.batch_size:
-                agent.update(replay_buffer, total_steps)
-                replay_buffer.count = 0
-
-            # Evaluate the policy every 'evaluate_freq' steps
-            if total_steps % args.batch_size == 0:
-                evaluate_num += 1
-                evaluate_reward = evaluate_policy(args, env_evaluate, agent, state_norm)
-                evaluate_rewards.append(evaluate_reward)
-                print("evaluate_num:{} \t evaluate_reward:{} \t".format(evaluate_num, evaluate_reward))
-                # Save the rewards
-                # if evaluate_num % args.save_freq == 0:
-                #     np.save('./data_train/PPO_discrete_env_{}_number_{}_seed_{}.npy'.format(env_name, number, seed), np.array(evaluate_rewards))
+    # state_norm.running_ms.n = 1591533
+    # state_norm.running_ms.mean = np.array([44.013186028817785, 0.9600533950600115, 1562.352058102224, 0.9702936206610618, 2.0, 21527.610066487272, 64202.282596850026, 0.2721929108601513, 243636.88070965503, 6393.39566239046, 35275.78437277017, 210153.36066392314, 683299.8619776118, 0.274740404534331, 0.013140499212051161, 70760.20773127167])
+    # state_norm.running_ms.S = np.array([353286153.27798074, 35330.309462488076, 1.5739824634729714e+16, 30440.225694195247, 0.0, 1.4561299158420646e+16, 5266029191979867.0, 315288.94224374654, 4.986939998212595e+16, 951045154152520.0, 6.4192058970218424e+16, 2.1689328276608467e+17, 3.715525474670262e+18, 8048099887.748394, 11077450.415637562, 992447580114931.0])
+    # state_norm.running_ms.std = np.array( [14.89894386941037, 0.14899301094210007, 99447.09944640756, 0.13829806701664252, 0.0, 95651.59981847912, 57521.97739953014, 0.4450886767124487, 177014.66496896933, 24445.15213861969, 200831.96103390714, 369160.50124459766, 1527925.9172860868, 71.11133877535111, 2.6382265304037325, 24971.576704237934])
+    evaluate_reward = evaluate_policy(args, env_evaluate, agent, state_norm)
+    evaluate_rewards.append(evaluate_reward)
+    print("evaluate_num:{} \t evaluate_reward:{} \t".format(evaluate_num, evaluate_reward))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameter Setting for PPO-discrete")
@@ -214,7 +149,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_adv_norm", type=bool, default=False, help="Trick 1:advantage normalization")
     parser.add_argument("--use_state_norm", type=bool, default=False, help="Trick 2:state normalization")
     parser.add_argument("--use_reward_norm", type=bool, default=False, help="Trick 3:reward normalization")
-    parser.add_argument("--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling")
+    parser.add_argument("--use_reward_scaling", type=bool, default=True, help="Trick 4:reward scaling")
     parser.add_argument("--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy")
     parser.add_argument("--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay")
     parser.add_argument("--use_grad_clip", type=bool, default=True, help="Trick 7: Gradient clip")

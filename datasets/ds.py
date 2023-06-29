@@ -52,7 +52,7 @@ class DataSet:
     def get_pension_benefit_param(self):
         return {
             'fixed_rate': 0.8,
-            'ave_income': [95397],
+            'ave_income': [49969],
             'basic_pension_rate': 0.15,
             'employer_rate': 0.15,
             'exp_life': self.exp_life,
@@ -60,8 +60,8 @@ class DataSet:
             'A_ret': -1,
             'retire_age': self.retire_age,
             'ave_p': 1,
-            'ave_stochastic_param': [0.0592753156445290, 0.018054842355693046],
-            'ave_t0': 95397,
+            'ave_stochastic_param': [0.01, 0.013],
+            'ave_t0': 49969,
             'private_pension_saving_limit': 12000,
             'con_base': [],
             'B1_factor': -1,
@@ -148,6 +148,7 @@ class DataSet:
             'health_feature': health_features,
             'health_status': '1' if health_features[1] < 60 else hs,
             'accumulated_shock': 0,
+            'cost_prob': [0.10825688073394496, 0.11774461028192372, 0.11128775834658187, 0.10303030303030303, 0.10325318246110325, 0.09719934102141681, 0.13688760806916425, 0.11942959001782531, 0.11275415896487985, 0.125, 0.15035799522673032, 0.17718446601941748, 0.13573407202216067, 0.11180124223602485, 0.14035087719298245, 0.14391143911439114]
         }
 
         return param
@@ -242,9 +243,10 @@ class DataSet:
         # # print(res.values[-1, ::])
         # exit(0)
         return {
-            'rates': 0,
+            'index': 0,
             'rate_model': result,
             'rates_latest': res.values[-1, ::],
+            'rates': np.zeros((100, 1))
         }
 
     def house_param(self):
