@@ -56,7 +56,7 @@ class DataSet:
             'basic_pension_rate': 0.15,
             'employer_rate': 0.15,
             'exp_life': self.exp_life,
-            'pension_fund_rate': 0.0275,
+            'pension_fund_rate': 0.04,
             'A_ret': -1,
             'retire_age': self.retire_age,
             'ave_p': 1,

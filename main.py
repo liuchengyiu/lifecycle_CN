@@ -38,7 +38,7 @@ class Normalization:
 
         return x
     
-    def save(self, path):
+    def save(self, path, te):
         import json
         import os
 
@@ -48,7 +48,7 @@ class Normalization:
             'S': self.running_ms.S.tolist(),
             'std': self.running_ms.std.tolist()
         }
-        json.dump(dict_, open(os.path.join(path, "state_norm.txt"), 'w'))
+        json.dump(dict_, open(os.path.join(path, "state_norm_{}.txt".format(te)), 'w'))
         
 
 class RunningMeanStd:
@@ -103,14 +103,14 @@ def evaluate_policy(args, env, agent, state_norm):
         evaluate_reward += episode_reward
     if evaluate_reward / times > now_reward:
         agent.save('./models')
-        state_norm.save('./models')
+        state_norm.save('./models', agent.ac_type)
         now_reward = evaluate_reward / times
     return evaluate_reward / times
 
 
 def main(args, number, seed):
-    env = lifecycle_env(DataSet(), 20, 1, [20.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
-    env_evaluate = lifecycle_env(DataSet(), 20, 1, [20.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    env = lifecycle_env(DataSet(), 25, 0,[44.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    env_evaluate = lifecycle_env(DataSet(), 25, 0,[44.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -126,7 +126,7 @@ def main(args, number, seed):
     evaluate_num = 0  # Record the number of evaluations
     evaluate_rewards = []  # Record the rewards during the evaluating
     total_steps = 0  # Record the total steps during the training
-    device = 2
+    device = 0
     replay_buffer = ReplayBufferV2_(args, device)
     agent = HPPO(
         action_dim=env.action_dim,

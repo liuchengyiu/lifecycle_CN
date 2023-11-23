@@ -139,9 +139,8 @@ class env:
         
         ave_income = self.pension_benefit_param['ave_income'][-1]
         if len(self.pension_benefit_param['con_base']) != 0:
-            ave_income = self.pension_benefit_param['ave_income'][-1] * self.pension_benefit_param['ave_p'] * np.exp(np.random.normal(self.pension_benefit_param['ave_stochastic_param'][0], self.pension_benefit_param['ave_stochastic_param'][1]))
+            ave_income = self.pension_benefit_param['ave_income'][-1] * self.pension_benefit_param['ave_p'] * (1 + np.random.normal(self.pension_benefit_param['ave_stochastic_param'][0], self.pension_benefit_param['ave_stochastic_param'][1]))
             self.pension_benefit_param['ave_income'].append(ave_income)
-        
         if self.age < self.retire_age:
             self.pension_benefit_param['con_base'].append(
                 get_contribution_base(
@@ -156,28 +155,18 @@ class env:
         #         ave_list[-1] * self.pension_benefit_param['ave_p'] * np.exp(np.random.normal(self.pension_benefit_param['ave_stochastic_param'][0], self.pension_benefit_param['ave_stochastic_param'][1])))
 
         ave_list = self.pension_benefit_param['ave_income'] 
-        # if 'con_base' not in self.pension_benefit_param:
-        #     for i in range(len(self.income_state)):
-        #         if i == 0:
-        #             con_base = []
-        #             con_base.append(get_contribution_base(
-        #                 0, self.income_state[i], ave_list[i], 0, self.employ_state[i] 
-        #             ))
-        #             continue
-        #         con_base.append(get_contribution_base(
-        #             self.income_state[i-1], self.income_state[i], ave_list[i], self.employ_state[i-1], self.employ_state[i] 
-        #         ))
-        #     self.pension_benefit_param['con_base'] = con_base
         con_base = self.pension_benefit_param['con_base']
-        
         if self.pension_benefit_param['B1_factor'] < 0:
             self.pension_benefit_param['B1_factor'] = 0.5 * (np.sum(np.array(con_base) / np.array(ave_list[:-1])) + np.sum(self.employ_state)) * 0.01
         B_1 =  self.pension_benefit_param['B1_factor'] * ave_list[-1]
         # print(ave_list[-1])
         if self.pension_benefit_param['A_ret'] < 0:
-            self.pension_benefit_param['A_ret'] = np.sum(np.array(con_base) * (self.pension_benefit_param['basic_pension_rate'] + self.pension_benefit_param['employer_rate']) \
-                * np.array([ pow((1+self.pension_benefit_param['pension_fund_rate']), len(con_base)-i-1) for i in range(len(con_base))]))
-        
+            A_ret = [0]
+            for i in range(len(con_base)):
+                A_ret.append(A_ret[-1] * (1 + self.pension_benefit_param['pension_fund_rate']) + con_base[i] * (self.pension_benefit_param['basic_pension_rate'] + self.pension_benefit_param['employer_rate']))
+            self.pension_benefit_param['A_ret'] = A_ret[-1]
+            # self.pension_benefit_param['A_ret'] = np.sum(np.array(con_base) * (self.pension_benefit_param['basic_pension_rate'] + self.pension_benefit_param['employer_rate']) \
+                # * np.array([ pow((1+self.pension_benefit_param['pension_fund_rate']), len(con_base)-i-1) for i in range(len(con_base))]))
         re_age = self.pension_benefit_param['retire_age'] 
         ex_age = self.pension_benefit_param['exp_life']
         rate = self.pension_benefit_param['pension_fund_rate']
@@ -212,14 +201,14 @@ class env:
 
      
     def investment_decisions(self, long_r, equity_r, long_term_bond_saving, equity_return_saving, p_long_term_bond_saving, p_equity_return__saving):
-            long_term_bond = (1 + long_r) * self.investment_asset['long_term_bond'] + long_term_bond_saving
-            equity_return = (1 + equity_r) * self.investment_asset['equity_return'] + equity_return_saving
-            p_long_term_bond = (1 + long_r) * self.investment_asset['p_long_term_bond'] + p_long_term_bond_saving
-            p_equity_return = (1 + equity_r) * self.investment_asset['p_equity_return'] + p_equity_return__saving
-            if self.age == self.retire_age:
-                p_long_term_bond *= 0.97
-                p_equity_return *= 0.97
-            return long_term_bond, equity_return, p_long_term_bond, p_equity_return
+        long_term_bond = (1 + long_r) * self.investment_asset['long_term_bond'] + long_term_bond_saving
+        equity_return = (1 + equity_r) * self.investment_asset['equity_return'] + equity_return_saving
+        p_long_term_bond = (1 + long_r) * self.investment_asset['p_long_term_bond'] + p_long_term_bond_saving
+        p_equity_return = (1 + equity_r) * self.investment_asset['p_equity_return'] + p_equity_return__saving
+        if self.age == self.retire_age:
+            p_long_term_bond *= 0.97
+            p_equity_return *= 0.97
+        return long_term_bond, equity_return, p_long_term_bond, p_equity_return
 
          
     def get_house_expenditure(self, income, house_fund_with_draw, house_fund_loan_pay, house_commerical_loan_pay, house_cost, loan_ratio, owning):
@@ -229,6 +218,7 @@ class env:
         house_size = self.house_param['house_size']
         fund_balance = self.house_param['house_fund']
         lpr = self.house_param['lpr']
+        
         def update_loan_term(self, bef_own, now_own):
             # print(bef_own, now_own, self.house_param['debt'])
             if bef_own == 0 and now_own == 1:
@@ -262,6 +252,7 @@ class env:
             fee -= house_fund_with_draw
         elif own_bef == 0 and owning == 1:
             """"""
+            fee -= house_fund_with_draw
             house_size = house_cost / (price * (1 - loan_ratio + self.house_param['transaction_cost']))
             debt = price * house_size * loan_ratio 
             house_fund_balance_loan = self.house_param['house_loan_to_fund'] * fund_balance
@@ -275,28 +266,20 @@ class env:
         elif own_bef == 1 and owning == 1:
             """"""
             if self.house_param['debt'] >= 100:
-                fee = house_fund_loan_pay + house_commerical_loan_pay 
+                fee = house_fund_loan_pay + house_commerical_loan_pay - house_fund_with_draw
                 debt = self.house_param['debt']
                 commerical_loan = debt - self.house_param['house_fund_loan']
                 house_fund_loan = self.house_param['house_fund_loan']
-                # house_fund_loan = (1 + lpr - self.house_param['interest_diff']) * (house_fund_loan - house_fund_loan_pay)
-                house_fund_loan = house_fund_loan - house_fund_loan_pay
-                if house_fund_loan > house_fund_with_draw:
-                    house_fund_loan -= house_fund_with_draw
-                    house_fund_with_draw = 0
-                else:
-                    house_fund_with_draw -= house_fund_loan
-                    house_fund_loan = 0
-                house_fund_loan *= (1 + lpr - self.house_param['interest_diff'])
-                commerical_loan = (1 + lpr) * (commerical_loan - house_commerical_loan_pay - house_fund_with_draw)
+                house_fund_loan = (1 + lpr - self.house_param['interest_diff']) * (house_fund_loan - house_fund_loan_pay)
+                commerical_loan = (1 + lpr) * (commerical_loan - house_commerical_loan_pay)
                 self.house_param['debt'] = house_fund_loan + commerical_loan
                 self.house_param['house_fund_loan'] = house_fund_loan
             else:
-                fee = 0
+                fee = -house_fund_with_draw
             if self.house_param['debt'] < 100:
                 self.house_param['debt'] = self.house_param['house_fund_loan'] = 0
         elif own_bef == 1 and owning == 0:
-            fee = -price * house_size
+            fee = -price * house_size - house_fund_with_draw
         
         update_loan_term(self, own_bef, owning)
         self.house_param['owning_house'] = owning
@@ -424,29 +407,28 @@ class env:
             cs_range = [0, income + ers_balance + ltbs_balance]
             ltbs_range = [-ltbs_balance, income + ers_balance]
             ers_range = [-ers_balance, income + ltbs_balance]
-            pltbs_range = [0, income + ltbs_balance + ers_balance]
-            pers_range = [0, income + ltbs_balance + ers_balance]
+            pltbs_range = [0, min(income + ltbs_balance + ers_balance, 12000)]
+            pers_range = [0, min(income + ltbs_balance + ers_balance, 12000)]
         else:
             cs_range = [0, income + ers_balance + ltbs_balance + pltbs_balance + pers_balance]
             ltbs_range = [-ltbs_balance, income + ers_balance + pltbs_balance + pers_balance]
             ers_range = [-ers_balance, income + ltbs_balance + pltbs_balance + pers_balance]
-            pltbs_range = [-pltbs_balance, income + ltbs_balance + ers_balance + pltbs_balance + pers_balance]
-            pers_range = [-pers_balance, income + ltbs_balance + ers_balance + pltbs_balance + pers_balance]
+            pltbs_range = [-pltbs_balance, 0]
+            pers_range = [-pers_balance, 0]
         hc_range = [0, 0]
         if own_bef == 0 and owning_house == 0:
             hc_range = [0, cs_range[1]]
-            hfw_range = [-min(hc_range[1], hf_balance), 0]
-            range_arr = np.array([hfw_range, hc_range, cs_range, ltbs_range, ers_range, pltbs_range, pers_range])
-            ori_arr = np.array([house_fund_withdraw, house_cost, single_child_spend, long_term_bond_saving, equity_return_saving, p_long_term_bond_saving, p_equity_return_saving])
+            range_arr = np.array([hc_range, cs_range, ltbs_range, ers_range, pltbs_range, pers_range])
+            ori_arr = np.array([house_cost, single_child_spend, long_term_bond_saving, equity_return_saving, p_long_term_bond_saving, p_equity_return_saving])
             res_temp, status = compute_up_low(range_arr, -(cs_range[1] - income), income, ori_arr)
-            factor = np.array([-1, 1, 1 / kid_num if kid_num != 0 else 0, \
+            factor = np.array([1, 1 / kid_num if kid_num != 0 else 0, \
                                         1, 1, 1, 1])
             res_temp = res_temp * factor
-            res[3:] = res_temp
+            res[4:] = res_temp
             # res[3:] = [get_real_value(range_arr[i, :], ori_arr[i], factor=factor[i]) for i in range(range_arr.shape[0])]
-            range_arr[0, 0] = -min(res[4], -range_arr[0, 0])
-            res[3] = get_real_value(range_arr[0, :], ori_arr[0], factor=factor[0])
-            # print(hf_balance, res[3], res[4], range_arr[0, :], )
+            if self.age < self.retire_age:
+                hfw_range = [-min(res[4], hf_balance), 0]
+                res[3] = get_real_value(hfw_range, house_fund_withdraw, factor=-1)
         elif own_bef == 0 and owning_house == 1:
             hc_range = [0, cs_range[1]]
             loan_ratio = get_real_value([0.3, 0.7], loan_ratio, 1)
@@ -463,17 +445,24 @@ class env:
                 lpr = self.house_param['lpr']
                 f_hfl = get_installment_pay(1+lpr-self.house_param['interest_diff'], self.house_param['house_fund_loan_term'])
                 f_cl =  get_installment_pay(1+lpr, self.house_param['commerical_loan_term'])
-                hflp_range = [f_hfl*self.house_param['house_fund_loan'], min(self.house_param['house_fund_loan'], income + ers_balance + ltbs_balance + hf_balance)]
-                hclp_range = [f_cl*(self.house_param['debt']-self.house_param['house_fund_loan']), min(self.house_param['debt'] - self.house_param['house_fund_loan'], income + ers_balance + ltbs_balance + hf_balance)]
-                hfw_range = [-min(self.house_param['debt'], hf_balance), 0]
+                hflp_range = [f_hfl*self.house_param['house_fund_loan'], min(self.house_param['house_fund_loan'], income + ers_balance + ltbs_balance)]
+                hclp_range = [f_cl*(self.house_param['debt']-self.house_param['house_fund_loan']), min(self.house_param['debt'] - self.house_param['house_fund_loan'], income + ers_balance + ltbs_balance)]
+                if self.age < self.retire_age:
+                    hfw_range = [-min(self.house_param['debt'], hf_balance), 0]
+                else:
+                    hfw_range = [-hf_balance, 0]
                 hc_range = [0, 0]
-                range_arr = np.array([hflp_range, hclp_range, hfw_range, hc_range, cs_range, ltbs_range, ers_range, pltbs_range, pers_range])
-                ori_arr = np.array([house_fund_loan_pay, house_commerical_loan_pay, house_fund_withdraw, house_cost, single_child_spend, long_term_bond_saving, equity_return_saving, p_long_term_bond_saving, p_equity_return_saving])
+                range_arr = np.array([hflp_range, hclp_range, hc_range, cs_range, ltbs_range, ers_range, pltbs_range, pers_range])
+                ori_arr = np.array([house_fund_loan_pay, house_commerical_loan_pay, house_cost, single_child_spend, long_term_bond_saving, equity_return_saving, p_long_term_bond_saving, p_equity_return_saving])
                 res_temp, status = compute_up_low(range_arr, -(cs_range[1] - income), income, ori_arr)
-                factor = np.array([1, 1, -1, 1, 1 / kid_num if kid_num != 0 else 0, \
+                factor = np.array([1, 1, 1, 1 / kid_num if kid_num != 0 else 0, \
                                         1, 1, 1, 1])
                 res_temp = res_temp * factor
-                res[1:] = res_temp
+                res[1:3] = res_temp[:2]
+                res[4:] = res_temp[2:]
+                if self.age < self.retire_age:
+                    hfw_range[0] = -min(-hfw_range[0], res[0] + res[1])
+                    res[3] = get_real_value(hfw_range, house_fund_withdraw, factor=-1)
                 # print(self.age, f_hfl, hf_balance, hflp_range, hclp_range)
             else:
                 range_arr = np.array([cs_range, ltbs_range, ers_range, pltbs_range, pers_range])
@@ -483,12 +472,9 @@ class env:
                                         1., 1., 1., 1.])
                 res_temp = res_temp * factor
                 res[5:] =  res_temp
-        # print(res)
-        # print(own_bef, owning_house, hc_range)
-        # single_child_spend [0, ]
         return res, status
 
-    def step(self, state, action: list, record_gain = False):
+    def step(self, state, action: list, record_gain = True):
         # print(action)
         # state age, health_status, health_care_cost, living_pro, kid_num, income, contribution_base, pension_benfit, house_fund_balance, asset_liquid, asset_pension, debt_commerical, debt_house_fund, house_price 
         
@@ -556,7 +542,6 @@ class env:
         
         loan_ratio, house_fund_loan_pay, house_commerical_loan_pay, house_fund_withdraw, house_cost, single_child_spend, long_term_bond_saving, equity_return_saving, p_long_term_bond_saving, p_equity_return_saving\
           = real_actions
-        # print(house_fund_withdraw)
         if record_gain == True:
             record['loan_ratio'] = [loan_ratio]
             record['house_fund_loan_pay'] = [house_fund_loan_pay]
@@ -568,7 +553,6 @@ class env:
             record['equity_return_saving'] = [equity_return_saving]
             record['p_long_term_bond_saving'] = [p_long_term_bond_saving]
             record['p_equity_return_saving'] = [p_equity_return_saving]
-            
 
         # house
         house_fee, house_size = self.get_house_expenditure(con_base, house_fund_withdraw, house_fund_loan_pay, house_commerical_loan_pay, \
@@ -578,19 +562,23 @@ class env:
         # non-consumption
         if self.age < self.retire_age:
             non_consumption = income - single_child_spend * kid_num - house_fee -\
-                (long_term_bond_saving + equity_return_saving + p_long_term_bond_saving + p_equity_return_saving) - health_care_cost
+                (long_term_bond_saving + equity_return_saving + p_long_term_bond_saving + p_equity_return_saving)
         else:
-            p_saving = (1 - 0.03) * (p_long_term_bond_saving + p_equity_return_saving) if p_long_term_bond_saving + p_equity_return_saving < 0 else p_long_term_bond_saving + p_equity_return_saving
-            non_consumption = income + house_fund_withdraw - p_saving - single_child_spend * kid_num - house_fee - health_care_cost
+            p_saving = p_long_term_bond_saving + p_equity_return_saving
+            non_consumption = income - p_saving - single_child_spend * kid_num - house_fee - (long_term_bond_saving + equity_return_saving)
         if non_consumption < 0:
-            non_consumption = 1
+            print('fuckk', non_consumption, own_bef, self.house_param['owning_house'])
+            non_consumption = 0.01
         reward  = self.get_reward(non_consumption, health_status, house_size, kid_num, single_child_spend, wealth, living_pro)
 
         if record_gain == True:
             record['wealth'] = [wealth]
             record['non_consumption'] = [non_consumption]
-            # print(income, non_consumption)
+            record['house_size'] = [self.house_param['house_size']]
+            record['reward'] = [reward]
+            
             self.record_df = pd.concat([self.record_df, pd.DataFrame(record)], ignore_index=True)
+            # print(income, non_consumption)
 
         # generate next state
         # compute 
@@ -601,7 +589,6 @@ class env:
         income_next = self.evlove_income()[0]
         pension_bef, con_base = self.pension_benefit()
         income_next += pension_bef
-        # print(pension_bef)
         # health 
         health_care_cost = 0
         health_status = 1
@@ -632,9 +619,14 @@ class env:
             exp_tex += 12000
         if self.house_param['owning_house'] == 1 and self.house_param['debt'] > 0:
             exp_tex += 12000
-        if income >= 60000 and self.age < self.retire_age:
+        income = income_next
+        if income_next >= 60000 and self.age < self.retire_age:
             income = income_next + 0.15 * np.power(exp_tex, 0.98)
             income -= self.pension_benefit_param['basic_pension_rate'] * con_base 
+        if self.age == self.retire_age:
+            income += self.house_param['house_fund']
+            self.house_param['house_fund'] = 0
+        
         self.house_param['house_price'] = self.house_param['house_price'] * (1+china_tier1)
 
         new_state = [

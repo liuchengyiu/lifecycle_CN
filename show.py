@@ -7,6 +7,7 @@ from agents.hppo_mine import HPPO
 from environment import lifecycle_env
 import torch
 from datasets import DataSet
+import json
 
 now_reward = -1000000
 ind_1 = [31.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,]
@@ -38,6 +39,19 @@ class Normalization:
         x = (x - self.running_ms.mean) / (self.running_ms.std + 1e-8)
 
         return x
+    def load(self, path, ty):
+        import os
+        # dict_ = {
+        #     'n': self.running_ms.n,
+        #     'mean': self.running_ms.mean.tolist(),
+        #     'S': self.running_ms.S.tolist(),
+        #     'std': self.running_ms.std.tolist()
+        # }
+        ds = json.load(open(os.path.join(path, 'state_norm_{}.txt'.format(ty))))
+        self.running_ms.n = ds['n']
+        self.running_ms.mean = np.array(ds['mean'])
+        self.running_ms.S = np.array(ds['S'])
+        self.running_ms.std = np.array(ds['std'])
 
 class RunningMeanStd:
     # Dynamically calculate mean and std
@@ -61,7 +75,7 @@ class RunningMeanStd:
 
 def evaluate_policy(args, env, agent, state_norm):
     # global now_reward
-    times = 500
+    times = 100
     evaluate_reward = 0
     mu = 0
     single_re = []
@@ -94,8 +108,12 @@ def evaluate_policy(args, env, agent, state_norm):
 
 
 def main(args, number, seed):
-    env = lifecycle_env(DataSet(), 25, 1, [25.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
-    env_evaluate = lifecycle_env(DataSet(), 25, 1, [25.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    # env = lifecycle_env(DataSet(), 25, 0,[44.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    # env_evaluate = lifecycle_env(DataSet(), 25, 0, [44.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    # env = lifecycle_env(DataSet(), 25, 0,[44.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    # env_evaluate = lifecycle_env(DataSet(), 25, 0, [44.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    env = lifecycle_env(DataSet(), 25, 0,[36.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
+    env_evaluate = lifecycle_env(DataSet(), 25, 0, [36.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0], [1.0,65.0,1.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0])
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -107,10 +125,10 @@ def main(args, number, seed):
     print("env={}".format('Life Cycle cn'))
     print("state_dim={}".format(args.state_dim))
     print("action_dim={}".format(args.action_dim))
-
+    print(args.distribution_type)
     evaluate_num = 0  # Record the number of evaluations
     evaluate_rewards = []  # Record the rewards during the evaluating
-    device = 2
+    device = 1
     agent = HPPO(
         action_dim=env.action_dim,
         state_dim=env.state_dim,
@@ -124,10 +142,7 @@ def main(args, number, seed):
     )
     agent.load('./model_behavior/models')
     state_norm = Normalization(shape=args.state_dim)  # Trick 2:state normalization
-    # state_norm.running_ms.n = 1591533
-    # state_norm.running_ms.mean = np.array([44.013186028817785, 0.9600533950600115, 1562.352058102224, 0.9702936206610618, 2.0, 21527.610066487272, 64202.282596850026, 0.2721929108601513, 243636.88070965503, 6393.39566239046, 35275.78437277017, 210153.36066392314, 683299.8619776118, 0.274740404534331, 0.013140499212051161, 70760.20773127167])
-    # state_norm.running_ms.S = np.array([353286153.27798074, 35330.309462488076, 1.5739824634729714e+16, 30440.225694195247, 0.0, 1.4561299158420646e+16, 5266029191979867.0, 315288.94224374654, 4.986939998212595e+16, 951045154152520.0, 6.4192058970218424e+16, 2.1689328276608467e+17, 3.715525474670262e+18, 8048099887.748394, 11077450.415637562, 992447580114931.0])
-    # state_norm.running_ms.std = np.array( [14.89894386941037, 0.14899301094210007, 99447.09944640756, 0.13829806701664252, 0.0, 95651.59981847912, 57521.97739953014, 0.4450886767124487, 177014.66496896933, 24445.15213861969, 200831.96103390714, 369160.50124459766, 1527925.9172860868, 71.11133877535111, 2.6382265304037325, 24971.576704237934])
+    state_norm.load('./model_behavior/models', agent.ac_type)
     evaluate_reward = evaluate_policy(args, env_evaluate, agent, state_norm)
     evaluate_rewards.append(evaluate_reward)
     print("evaluate_num:{} \t evaluate_reward:{} \t".format(evaluate_num, evaluate_reward))

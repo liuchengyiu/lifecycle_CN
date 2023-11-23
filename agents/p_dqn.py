@@ -268,7 +268,7 @@ class PDQNAgent(Agent):
                  weighted=False,
                  average=False,
                  random_weighted=False,
-                 device="cuda:2" if torch.cuda.is_available() else "cpu",
+                 device="cuda:0" if torch.cuda.is_available() else "cpu",
                  seed=None):
         super(PDQNAgent, self).__init__(observation_space_dim, action_space_dim)
         self.device = torch.device(device)

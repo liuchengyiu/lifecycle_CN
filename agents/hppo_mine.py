@@ -349,9 +349,9 @@ class HPPO:
         torch.save(self.critic.state_dict(), os.path.join(path, "critic_{}.pt".format(self.ac_type)))
     
     def load(self, path):
-        self.actor_con.load_state_dict(torch.load(os.path.join(path, "actor_con_{}.pt").format(self.ac_type)))
-        self.actor_dis.load_state_dict(torch.load(os.path.join(path, "actor_dis_{}.pt").format(self.ac_type)))
-        self.critic.load_state_dict(torch.load(os.path.join(path, "critic_{}.pt").format(self.ac_type)))
+        self.actor_con.load_state_dict(torch.load(os.path.join(path, "actor_con_{}.pt").format(self.ac_type), map_location={'cuda:2': 'cuda:1'}))
+        self.actor_dis.load_state_dict(torch.load(os.path.join(path, "actor_dis_{}.pt").format(self.ac_type), map_location={'cuda:2': 'cuda:1'}))
+        self.critic.load_state_dict(torch.load(os.path.join(path, "critic_{}.pt").format(self.ac_type), map_location={'cuda:2': 'cuda:1'}))
 
 
     def lr_decay(self, total_steps):
